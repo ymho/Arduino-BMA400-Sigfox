@@ -1,3 +1,4 @@
+#include <Arduino.h>
 /*
  * Author: Louis Moreau: https://github.com/luisomoreau
  * Date: 2017/03/03
@@ -8,10 +9,14 @@
 
 // include the SoftwareSerial library so you can use its functions:
 #include <SoftwareSerial.h>
+#include "BMA400.h"
 
 #define rxPin 10
 #define txPin 11
+// #define rxPin 5
+// #define txPin 6
 
+uint32_t cnt = 0;
 
 // set up a new serial port
 SoftwareSerial Sigfox =  SoftwareSerial(rxPin, txPin);
@@ -20,43 +25,9 @@ SoftwareSerial Sigfox =  SoftwareSerial(rxPin, txPin);
 #define DEBUG 1
 
 //Message buffer
-uint8_t msg[12];
+//uint8_t msg[12];  1byteの符号なし整数値の12byte分のバッファ
+uint32_t msg[3];
 
-// the setup function runs once when you press reset or power the board
-void setup() {
-  // initialize digital pin LED_BUILTIN as an output.
-  pinMode(LED_BUILTIN, OUTPUT);
-
-  if(DEBUG){
-    Serial.begin(9600);
-  }
-
-  // open Wisol communication
-   // define pin modes for tx, rx:
-  pinMode(rxPin, INPUT);
-  pinMode(txPin, OUTPUT);
-  Sigfox.begin(9600);
-  delay(100);
-  getID();
-  delay(100);
-  getPAC();
-}
-
-// the loop function runs over and over again forever
-void loop() {
-  msg[0]=0xC0;
-  msg[1]=0xFF;
-  msg[2]=0xEE;
-
-  sendMessage(msg, 3);
-
-  // In the ETSI zone, due to the reglementation, an object cannot emit more than 1% of the time hourly
-  // So, 1 hour = 3600 sec
-  // 1% of 3600 sec = 36 sec
-  // A Sigfox message takes 6 seconds to emit
-  // 36 sec / 6 sec = 6 messages per hours -> 1 every 10 minutes
-  delay(60000);
-}
 
 void blink(){
   digitalWrite(LED_BUILTIN, HIGH);   // turn the LED on (HIGH is the voltage level)
@@ -89,7 +60,6 @@ String getID(){
   return id;
 }
 
-
 //Get PAC number
 String getPAC(){
   String pac = "";
@@ -116,7 +86,7 @@ String getPAC(){
 
 
 //Send Sigfox Message
-void sendMessage(uint8_t msg[], int size){
+void sendMessage(uint32_t msg[], int size){
 
   String status = "";
   char output;
@@ -145,4 +115,61 @@ void sendMessage(uint8_t msg[], int size){
     Serial.print("Status \t");
     Serial.println(status);
   }
+}
+
+// the setup function runs once when you press reset or power the board
+void setup() {
+  Wire.begin();
+  // initialize digital pin LED_BUILTIN as an output.
+  pinMode(LED_BUILTIN, OUTPUT);
+
+  if(DEBUG){
+    Serial.begin(115200);
+    while(!Serial);
+    Serial.println("BMA400 Raw Data and Send Sigfox");
+  }
+
+  if(bma400.isConnection())
+  {
+    bma400.initialize();
+    Serial.println("bma400 is connected");
+  }
+  else Serial.println("bma400 is not connected");
+
+  // open Wisol communication
+  // define pin modes for tx, rx:
+  pinMode(rxPin, INPUT);
+  pinMode(txPin, OUTPUT);
+  Sigfox.begin(9600);
+  delay(100);
+  getID();
+  delay(100);
+  getPAC();
+}
+
+// the loop function runs over and over again forever
+void loop() {
+
+  delay(1000);
+
+  bma400.EnableStepCounter();
+  cnt = bma400.getStepCounter();
+
+  if(DEBUG){
+    Serial.print("Step: ");
+    Serial.println(cnt);
+  }
+
+  msg[0]=cnt;
+  msg[1]=0x00;
+  msg[2]=0x00;
+
+  sendMessage(msg, 3);
+
+  // In the ETSI zone, due to the reglementation, an object cannot emit more than 1% of the time hourly
+  // So, 1 hour = 3600 sec
+  // 1% of 3600 sec = 36 sec
+  // A Sigfox message takes 6 seconds to emit
+  // 36 sec / 6 sec = 6 messages per hours -> 1 every 10 minutes
+  delay(60000);
 }
