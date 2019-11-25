@@ -1,40 +1,18 @@
 #include <Arduino.h>
-/*
- * Author: Louis Moreau: https://github.com/luisomoreau
- * Date: 2017/03/03
- * Description:
- * This arduino example will show you how to send a Sigfox message
- * using the wisol module and Arduino UNO (https://yadom.fr/carte-breakout-sfm10r1.html)
-*/
-
-// include the SoftwareSerial library so you can use its functions:
 #include <SoftwareSerial.h>
-#include "BMA400.h"
+#include "BMA400.h"   // BMA400(加速度センサ用)
 
 #define rxPin 10
 #define txPin 11
-// #define rxPin 5
-// #define txPin 6
 
 uint32_t cnt = 0;
 
-// set up a new serial port
 SoftwareSerial Sigfox =  SoftwareSerial(rxPin, txPin);
 
-//Set to 0 if you don't need to see the messages in the console
-#define DEBUG 1
+#define DEBUG 1 // デバッグモード
 
-//Message buffer
 //uint8_t msg[12];  1byteの符号なし整数値の12byte分のバッファ
-uint32_t msg[3];
-
-
-void blink(){
-  digitalWrite(LED_BUILTIN, HIGH);   // turn the LED on (HIGH is the voltage level)
-  delay(1000);                       // wait for a second
-  digitalWrite(LED_BUILTIN, LOW);    // turn the LED off by making the voltage LOW
-  delay(1000);
-}
+uint32_t msg[3];    // 4byteの符号なし整数値の12byte分のバッファ
 
 //Get Sigfox ID
 String getID(){
@@ -42,9 +20,7 @@ String getID(){
   char output;
 
   Sigfox.print("AT$I=10\r");
-  while (!Sigfox.available()){
-     blink();
-  }
+  while (!Sigfox.available())
 
   while(Sigfox.available()){
     output = Sigfox.read();
@@ -66,9 +42,7 @@ String getPAC(){
   char output;
 
   Sigfox.print("AT$I=11\r");
-  while (!Sigfox.available()){
-     blink();
-  }
+  while (!Sigfox.available())
 
   while(Sigfox.available()){
     output = Sigfox.read();
@@ -93,7 +67,7 @@ void sendMessage(uint32_t msg[], int size){
 
   Sigfox.print("AT$SF=");
   for(int i= 0;i<size;i++){
-    Sigfox.print(String(msg[i], HEX));
+    Sigfox.print(String(msg[i], HEX));  // 16進数で
     if(DEBUG){
       Serial.print("Byte:");
       Serial.println(msg[i], HEX);
@@ -102,9 +76,8 @@ void sendMessage(uint32_t msg[], int size){
 
   Sigfox.print("\r");
 
-  while (!Sigfox.available()){
-     blink();
-  }
+  while (!Sigfox.available())
+
   while(Sigfox.available()){
     output = (char)Sigfox.read();
     status += output;
@@ -117,21 +90,22 @@ void sendMessage(uint32_t msg[], int size){
   }
 }
 
-// the setup function runs once when you press reset or power the board
 void setup() {
   Wire.begin();
+
   // initialize digital pin LED_BUILTIN as an output.
   pinMode(LED_BUILTIN, OUTPUT);
 
+  Serial.begin(115200);
+  while(!Serial);
+  Serial.println("BMA400 Raw Data and Send Sigfox");
+
   if(DEBUG){
-    Serial.begin(115200);
-    while(!Serial);
-    Serial.println("BMA400 Raw Data and Send Sigfox");
+    Serial.println("DebugMode: On");
   }
 
-  if(bma400.isConnection())
-  {
-    bma400.initialize();
+  if(bma400.isConnection()){  // BMA400に接続可能かどうか
+    bma400.initialize();      // 可能なら初期化
     Serial.println("bma400 is connected");
   }
   else Serial.println("bma400 is not connected");
@@ -147,12 +121,13 @@ void setup() {
   getPAC();
 }
 
-// the loop function runs over and over again forever
+
 void loop() {
+
+  bma400.EnableStepCounter(); // 歩数カウントを有効化する
 
   delay(1000);
 
-  bma400.EnableStepCounter();
   cnt = bma400.getStepCounter();
 
   if(DEBUG){
@@ -160,16 +135,11 @@ void loop() {
     Serial.println(cnt);
   }
 
-  msg[0]=cnt;
-  msg[1]=0x00;
-  msg[2]=0x00;
+  msg[0]=cnt;   // 歩数を格納
+  msg[1]=0x00;  // 空きは0で埋める
+  msg[2]=0x00;  // 空きは0で埋める
 
   sendMessage(msg, 3);
 
-  // In the ETSI zone, due to the reglementation, an object cannot emit more than 1% of the time hourly
-  // So, 1 hour = 3600 sec
-  // 1% of 3600 sec = 36 sec
-  // A Sigfox message takes 6 seconds to emit
-  // 36 sec / 6 sec = 6 messages per hours -> 1 every 10 minutes
-  delay(60000);
+  delay(300000);   // 300000ms = 5m , Sigfoxの送信に10sはかかるので注意！
 }
