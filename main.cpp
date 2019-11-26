@@ -7,6 +7,9 @@
 
 uint32_t cnt = 0;
 
+unsigned long s_time;   // millsで使用する起動時間を格納する変数  50日でオーバーフローする！
+unsigned long n_time;
+
 SoftwareSerial Sigfox =  SoftwareSerial(rxPin, txPin);
 
 #define DEBUG 1 // デバッグモード
@@ -119,6 +122,8 @@ void setup() {
   getID();
   delay(100);
   getPAC();
+
+  // s_time = millis();
 }
 
 
@@ -128,7 +133,7 @@ void loop() {
 
   delay(1000);
 
-  cnt = bma400.getStepCounter();
+  cnt = bma400.getStepCounter();  // 歩数レジスタにアクセスして歩数を取得
 
   if(DEBUG){
     Serial.print("Step: ");
@@ -139,7 +144,9 @@ void loop() {
   msg[1]=0x00;  // 空きは0で埋める
   msg[2]=0x00;  // 空きは0で埋める
 
+  // n_time = millis();
+
   sendMessage(msg, 3);
 
-  delay(300000);   // 300000ms = 5m , Sigfoxの送信に10sはかかるので注意！
+  // delay(300000);   // 300000ms = 5m , Sigfoxの送信に10sはかかるので注意！
 }
